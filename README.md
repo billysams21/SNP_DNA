@@ -181,3 +181,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ---
 
 **SNPify** - Advancing Genetic Analysis Through Technology 🧬✨
+
+● 18222017 Dzulfaqor Ali Dipanegara 
+● 18222039 Billy Samuel Setiawan 
+● 18222079 Alvin Fadhilah Akmal 
