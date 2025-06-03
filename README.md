@@ -167,10 +167,9 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 👥 Tim Pengembang
 
-- **Frontend Team**: React/Next.js specialists
-- **Algorithm Team**: Bioinformatics researchers
-- **Data Team**: Genetic data specialists
-- **UI/UX Team**: Design dan user experience
+● 18222017 Dzulfaqor Ali Dipanegara 
+● 18222039 Billy Samuel Setiawan 
+● 18222079 Alvin Fadhilah Akmal 
 
 ## 🔗 Links
 
@@ -181,3 +180,4 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ---
 
 **SNPify** - Advancing Genetic Analysis Through Technology 🧬✨
+
