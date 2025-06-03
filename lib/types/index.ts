@@ -69,15 +69,14 @@ export interface AnalysisParameters {
 
 export interface AnalysisResult {
   id: string;
-  timestamp: Date;
-  algorithm: Algorithm;
-  referenceGene: Gene;
-  snps: SNPResult[];
-  statistics: AnalysisStatistics;
-  alignment?: AlignmentResult;
-  quality: QualityMetrics;
-  processingTime: number;
-  status: 'completed' | 'error' | 'processing';
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  variants: SNPVariant[];
+  summary: AnalysisSummary;
+  metadata: AnalysisMetadata;
+  progress: number;
+  startTime: Date;
+  endTime?: Date;
+  error?: string;
 }
 
 export interface AnalysisStatistics {
@@ -354,3 +353,191 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   maxFileSize: 10 * 1024 * 1024, // 10MB
   autoSave: true,
 };
+
+// Base Types
+export interface SNPVariant {
+  id: string;
+  position: number;
+  chromosome: string;
+  gene: 'BRCA1' | 'BRCA2';
+  refAllele: string;
+  altAllele: string;
+  rsId?: string;
+  mutation: string;
+  consequence: string;
+  impact: 'HIGH' | 'MODERATE' | 'LOW' | 'MODIFIER';
+  clinicalSignificance: 'PATHOGENIC' | 'LIKELY_PATHOGENIC' | 'UNCERTAIN_SIGNIFICANCE' | 'LIKELY_BENIGN' | 'BENIGN';
+  confidence: number;
+  frequency?: number;
+  sources: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AnalysisSummary {
+  totalVariants: number;
+  pathogenicVariants: number;
+  likelyPathogenicVariants: number;
+  uncertainVariants: number;
+  benignVariants: number;
+  overallRisk: 'HIGH' | 'MODERATE' | 'LOW';
+  riskScore: number;
+  recommendations: string[];
+}
+
+export interface AnalysisMetadata {
+  inputType: 'VCF' | 'FASTA' | 'RAW_SEQUENCE';
+  fileName?: string;
+  fileSize?: number;
+  processingTime?: number;
+  algorithmVersion: string;
+  qualityScore: number;
+  coverage?: number;
+  readDepth?: number;
+}
+
+// Input Types
+export interface FileUploadData {
+  file: File;
+  type: 'VCF' | 'FASTA' | 'RAW_SEQUENCE';
+  metadata?: {
+    patientId?: string;
+    sampleId?: string;
+    notes?: string;
+  };
+}
+
+export interface SequenceInputData {
+  sequence: string;
+  type: 'DNA' | 'PROTEIN';
+  gene?: 'BRCA1' | 'BRCA2';
+  metadata?: {
+    name?: string;
+    description?: string;
+  };
+}
+
+// API Response Types
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+  meta?: {
+    timestamp: string;
+    version: string;
+    requestId: string;
+  };
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+// Analysis Statistics
+export interface AnalysisStats {
+  totalAnalyses: number;
+  completedAnalyses: number;
+  averageProcessingTime: number;
+  accuracyRate: number;
+  variantDistribution: {
+    pathogenic: number;
+    likelyPathogenic: number;
+    uncertain: number;
+    likelyBenign: number;
+    benign: number;
+  };
+  geneDistribution: {
+    brca1: number;
+    brca2: number;
+  };
+}
+
+// User Data Types
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  role: 'USER' | 'RESEARCHER' | 'ADMIN';
+  institution?: string;
+  analyses: string[]; // Analysis IDs
+  createdAt: Date;
+  lastLogin?: Date;
+}
+
+// Visualization Types
+export interface ChartData {
+  labels: string[];
+  datasets: {
+    label: string;
+    data: number[];
+    backgroundColor?: string[];
+    borderColor?: string[];
+  }[];
+}
+
+export interface VariantVisualization {
+  chromosome: string;
+  position: number;
+  type: string;
+  impact: string;
+  gene: string;
+  color: string;
+  size: number;
+}
+
+// Algorithm Types
+export interface AlgorithmConfig {
+  name: string;
+  version: string;
+  parameters: Record<string, any>;
+  weights: {
+    frequency: number;
+    conservation: number;
+    functional: number;
+    clinical: number;
+  };
+}
+
+export interface PredictionScore {
+  algorithm: string;
+  score: number;
+  confidence: number;
+  prediction: 'PATHOGENIC' | 'BENIGN';
+  features: Record<string, number>;
+}
+
+// Report Types
+export interface AnalysisReport {
+  id: string;
+  analysisId: string;
+  type: 'PDF' | 'JSON' | 'CSV';
+  status: 'GENERATING' | 'READY' | 'FAILED';
+  url?: string;
+  generatedAt?: Date;
+  expiresAt?: Date;
+}
+
+export interface ReportTemplate {
+  id: string;
+  name: string;
+  description: string;
+  sections: ReportSection[];
+  format: 'PDF' | 'HTML';
+}
+
+export interface ReportSection {
+  id: string;
+  title: string;
+  type: 'SUMMARY' | 'VARIANTS_TABLE' | 'CHART' | 'RECOMMENDATIONS' | 'METHODOLOGY';
+  config: Record<string, any>;
+  order: number;
+}
