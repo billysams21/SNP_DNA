@@ -1,7 +1,8 @@
 ﻿'use client'
-import React, { useState, useEffect } from 'react'
+import { snpifyAPI } from '@/lib/api/client'
+import { AnalysisResult, convertBackendVariant } from '@/lib/types'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/Card'
-import { AnalysisResult } from '@/lib/types'
 
 interface AnalysisProgressProps {
   analysisId: string
@@ -11,203 +12,232 @@ interface AnalysisProgressProps {
 
 interface ProgressStep {
   id: string
-  title: string
-  description: string
-  status: 'pending' | 'running' | 'completed' | 'error'
+  name: string
   progress: number
-  duration?: number
+  weight: number
+}
+
+interface BackendProgressData {
+  analysis_id: string
+  progress: number
+  current_step: string
+  message: string
+  steps: ProgressStep[]
 }
 
 export default function AnalysisProgress({ analysisId, onComplete, language = 'en' }: AnalysisProgressProps) {
-  const [currentStep, setCurrentStep] = useState(0)
+  const [progressData, setProgressData] = useState<BackendProgressData | null>(null)
   const [overallProgress, setOverallProgress] = useState(0)
   const [startTime] = useState(Date.now())
   const [elapsedTime, setElapsedTime] = useState(0)
-  const [estimatedTime, setEstimatedTime] = useState(45)
+  const [error, setError] = useState<string | null>(null)
+  const [isPolling, setIsPolling] = useState(true)
+  const [retryCount, setRetryCount] = useState(0)
+  const maxRetries = 5
 
   const text = {
     en: {
       title: 'SNP Analysis in Progress',
-      description: 'Analyzing your genetic data for SNP variants',
+      description: 'Analyzing your genetic data using Python backend algorithms',
       elapsed: 'Elapsed',
       estimated: 'Estimated completion',
       seconds: 'seconds',
       completed: 'Analysis completed successfully!',
-      steps: [
-        {
-          title: 'File Processing',
-          description: 'Reading and validating input sequence data'
-        },
-        {
-          title: 'Sequence Alignment',
-          description: 'Aligning sequence with BRCA1/BRCA2 reference'
-        },
-        {
-          title: 'Variant Detection',
-          description: 'Identifying single nucleotide polymorphisms'
-        },
-        {
-          title: 'Clinical Annotation',
-          description: 'Annotating variants with clinical significance'
-        },
-        {
-          title: 'Quality Assessment',
-          description: 'Evaluating analysis quality and confidence'
-        },
-        {
-          title: 'Report Generation',
-          description: 'Generating comprehensive analysis report'
-        }
-      ]
+      error: 'Analysis failed',
+      retrying: 'Retrying...',
+      connecting: 'Connecting to Python backend...',
+      fetchingProgress: 'Fetching analysis progress...',
+      fetchingResults: 'Fetching final results...',
+      steps: {
+        file_processing: 'File Processing',
+        sequence_alignment: 'Sequence Alignment', 
+        variant_detection: 'Variant Detection',
+        clinical_annotation: 'Clinical Annotation',
+        quality_assessment: 'Quality Assessment',
+        report_generation: 'Report Generation'
+      }
     },
     id: {
       title: 'Analisis SNP Sedang Berlangsung',
-      description: 'Menganalisis data genetik Anda untuk varian SNP',
+      description: 'Menganalisis data genetik menggunakan algoritma backend Python',
       elapsed: 'Waktu berlalu',
       estimated: 'Perkiraan selesai',
       seconds: 'detik',
       completed: 'Analisis berhasil diselesaikan!',
-      steps: [
-        {
-          title: 'Pemrosesan File',
-          description: 'Membaca dan memvalidasi data sekuens input'
-        },
-        {
-          title: 'Penyelarasan Sekuens',
-          description: 'Menyelaraskan sekuens dengan referensi BRCA1/BRCA2'
-        },
-        {
-          title: 'Deteksi Varian',
-          description: 'Mengidentifikasi polimorfisme nukleotida tunggal'
-        },
-        {
-          title: 'Anotasi Klinis',
-          description: 'Memberikan anotasi varian dengan signifikansi klinis'
-        },
-        {
-          title: 'Penilaian Kualitas',
-          description: 'Mengevaluasi kualitas analisis dan tingkat kepercayaan'
-        },
-        {
-          title: 'Generasi Laporan',
-          description: 'Menghasilkan laporan analisis komprehensif'
-        }
-      ]
+      error: 'Analisis gagal',
+      retrying: 'Mencoba lagi...',
+      connecting: 'Menghubungkan ke backend Python...',
+      fetchingProgress: 'Mengambil progress analisis...',
+      fetchingResults: 'Mengambil hasil akhir...',
+      steps: {
+        file_processing: 'Pemrosesan File',
+        sequence_alignment: 'Penyelarasan Sekuens',
+        variant_detection: 'Deteksi Varian',
+        clinical_annotation: 'Anotasi Klinis',
+        quality_assessment: 'Penilaian Kualitas',
+        report_generation: 'Generasi Laporan'
+      }
     }
   }
 
-  const [steps, setSteps] = useState<ProgressStep[]>(
-    text[language].steps.map((step, index) => ({
-      id: `step-${index}`,
-      title: step.title,
-      description: step.description,
-      status: index === 0 ? 'running' : 'pending',
-      progress: index === 0 ? 0 : 0,
-      duration: [8, 12, 10, 8, 5, 7][index] // Estimated duration for each step
-    }))
-  )
+  // Fetch analysis progress from Python backend
+  useEffect(() => {
+    if (!analysisId || !isPolling) return
 
-  // Simulate analysis progress
+    let pollInterval: NodeJS.Timeout
+
+    const fetchProgress = async () => {
+      try {
+        console.log(`📊 Fetching progress for analysis: ${analysisId}`)
+        
+        // Get progress from Python backend
+        const progress = await snpifyAPI.getAnalysisProgress(analysisId)
+        console.log('📈 Progress received:', progress)
+        
+        setProgressData(progress)
+        setOverallProgress(progress.progress)
+        setError(null)
+        setRetryCount(0) // Reset retry count on success
+
+        // Check if analysis is complete
+        if (progress.progress >= 100) {
+          console.log('🎉 Analysis completed, fetching final result...')
+          setIsPolling(false)
+          
+          try {
+            // Fetch final result from Python backend
+            const result = await snpifyAPI.getAnalysisResult(analysisId)
+            console.log('📋 Final result received:', result)
+            
+            if (result.status === 'COMPLETED') {
+              // Convert backend result to frontend format
+              const convertedResult: AnalysisResult = {
+                ...result,
+                variants: result.variants?.map((variant: any) => convertBackendVariant(variant)) || []
+              }
+              
+              onComplete(convertedResult)
+              return
+            } else if (result.status === 'FAILED') {
+              setError(result.error || 'Analysis failed in backend')
+              setIsPolling(false)
+              return
+            }
+          } catch (resultError: any) {
+            console.error('❌ Error fetching final result:', resultError)
+            setError('Failed to fetch analysis result: ' + resultError.message)
+            setIsPolling(false)
+            return
+          }
+        }
+      } catch (err: any) {
+        console.error('❌ Error fetching progress:', err)
+        
+        // Implement retry logic
+        if (retryCount < maxRetries) {
+          console.log(`🔄 Retrying... (${retryCount + 1}/${maxRetries})`)
+          setRetryCount(prev => prev + 1)
+          setError(`${text[language].retrying} (${retryCount + 1}/${maxRetries})`)
+        } else {
+          console.error('💥 Max retries reached, stopping polling')
+          setError('Backend connection failed after multiple retries: ' + err.message)
+          setIsPolling(false)
+        }
+      }
+    }
+
+    // Initial fetch
+    fetchProgress()
+
+    // Poll for progress updates every 2 seconds
+    if (isPolling) {
+      pollInterval = setInterval(fetchProgress, 2000)
+    }
+
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval)
+      }
+    }
+  }, [analysisId, onComplete, isPolling, retryCount, maxRetries, text, language])
+
+  // Update elapsed time
   useEffect(() => {
     const interval = setInterval(() => {
       setElapsedTime(Math.floor((Date.now() - startTime) / 1000))
-      
-      setSteps(prevSteps => {
-        const newSteps = [...prevSteps]
-        const runningStepIndex = newSteps.findIndex(step => step.status === 'running')
-        
-        if (runningStepIndex !== -1) {
-          const currentStepProgress = newSteps[runningStepIndex].progress + Math.random() * 15 + 5
-          
-          if (currentStepProgress >= 100) {
-            // Complete current step
-            newSteps[runningStepIndex].status = 'completed'
-            newSteps[runningStepIndex].progress = 100
-            
-            // Start next step if available
-            if (runningStepIndex < newSteps.length - 1) {
-              newSteps[runningStepIndex + 1].status = 'running'
-              newSteps[runningStepIndex + 1].progress = 0
-              setCurrentStep(runningStepIndex + 1)
-            } else {
-              // All steps completed
-              setOverallProgress(100)
-              setTimeout(() => {
-                // Simulate analysis result
-                const mockResult: AnalysisResult = {
-                  id: analysisId,
-                  status: 'COMPLETED',
-                  variants: [],
-                  summary: {
-                    totalVariants: 5,
-                    pathogenicVariants: 1,
-                    likelyPathogenicVariants: 1,
-                    uncertainVariants: 1,
-                    benignVariants: 2,
-                    overallRisk: 'MODERATE',
-                    riskScore: 7.5,
-                    recommendations: []
-                  },
-                  metadata: {
-                    inputType: 'FASTA',
-                    algorithmVersion: '2.1.0',
-                    qualityScore: 98.7,
-                    processingTime: elapsedTime
-                  },
-                  progress: 100,
-                  startTime: new Date(startTime),
-                  endTime: new Date()
-                }
-                onComplete(mockResult)
-              }, 2000)
-              return newSteps
-            }
-          } else {
-            newSteps[runningStepIndex].progress = Math.min(currentStepProgress, 100)
-          }
-        }
-        
-        // Calculate overall progress
-        const totalProgress = newSteps.reduce((acc, step) => acc + step.progress, 0)
-        const overall = Math.floor(totalProgress / newSteps.length)
-        setOverallProgress(overall)
-        
-        // Update estimated time
-        const remainingSteps = newSteps.filter(step => step.status !== 'completed').length
-        const avgStepTime = newSteps.reduce((acc, step) => acc + (step.duration || 0), 0) / newSteps.length
-        setEstimatedTime(Math.max(0, remainingSteps * avgStepTime - elapsedTime))
-        
-        return newSteps
-      })
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [analysisId, onComplete, startTime, elapsedTime])
+  }, [startTime])
 
-  const getStepIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return '✅'
-      case 'running':
-        return '⚡'
-      case 'error':
-        return '❌'
-      default:
-        return '⏳'
+  const getStepIcon = (step: ProgressStep, currentStep: string) => {
+    if (step.progress >= 100) {
+      return '✅'
+    } else if (step.id === currentStep) {
+      return '⚡'
+    } else {
+      return '⏳'
     }
   }
 
-  const getStepColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'text-emerald-400'
-      case 'running':
-        return 'text-cyan-400'
-      case 'error':
-        return 'text-red-400'
-      default:
-        return 'text-gray-500'
+  const getStepColor = (step: ProgressStep, currentStep: string) => {
+    if (step.progress >= 100) {
+      return 'text-emerald-400'
+    } else if (step.id === currentStep) {
+      return 'text-cyan-400'
+    } else {
+      return 'text-gray-500'
     }
+  }
+
+  const estimateTimeRemaining = () => {
+    if (!progressData || overallProgress === 0) return 60
+    
+    const remainingProgress = 100 - overallProgress
+    const progressRate = overallProgress / elapsedTime
+    
+    if (progressRate === 0) return 60
+    
+    return Math.max(5, Math.round(remainingProgress / progressRate))
+  }
+
+  if (error && retryCount >= maxRetries) {
+    return (
+      <Card className="w-full max-w-4xl mx-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-red-400">
+            <span className="text-2xl">❌</span>
+            {text[language].error}
+          </CardTitle>
+          <CardDescription className="text-red-300">
+            Python Backend Connection Failed
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent className="space-y-4">
+          <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-lg">
+            <p className="text-red-400 text-sm">{error}</p>
+          </div>
+          
+          <div className="text-center">
+            <p className="text-gray-400 text-sm mb-4">
+              Analysis ID: <span className="font-mono text-cyan-400">{analysisId}</span>
+            </p>
+            <div className="p-4 bg-yellow-500/10 border border-yellow-500/50 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <span className="text-yellow-400">⚠️</span>
+                <div className="text-sm text-yellow-300">
+                  <strong>Make sure Python backend is running:</strong>
+                  <code className="block mt-2 text-xs bg-gray-900/50 p-2 rounded">
+                    cd snpify-backend && python main.py
+                  </code>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -227,10 +257,10 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <span className="text-lg font-semibold text-white">
-              {overallProgress}% Complete
+              {Math.round(overallProgress)}% Complete
             </span>
             <div className="text-sm text-gray-400">
-              {text[language].elapsed}: {elapsedTime}s | {text[language].estimated}: {estimatedTime}s
+              {text[language].elapsed}: {elapsedTime}s | {text[language].estimated}: {estimateTimeRemaining()}s
             </div>
           </div>
           
@@ -247,41 +277,41 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
 
         {/* Step Progress */}
         <div className="space-y-4">
-          {steps.map((step, index) => (
+          {progressData?.steps.map((step) => (
             <div key={step.id} className="flex items-start space-x-4">
               {/* Step Icon */}
               <div className={`flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
-                step.status === 'completed' 
+                step.progress >= 100
                   ? 'border-emerald-400 bg-emerald-400/20 text-emerald-400' 
-                  : step.status === 'running'
+                  : step.id === progressData.current_step
                   ? 'border-cyan-400 bg-cyan-400/20 text-cyan-400 animate-pulse'
-                  : step.status === 'error'
-                  ? 'border-red-400 bg-red-400/20 text-red-400'
                   : 'border-gray-600 bg-gray-800/50 text-gray-500'
               }`}>
                 <span className="text-xs">
-                  {getStepIcon(step.status)}
+                  {getStepIcon(step, progressData.current_step)}
                 </span>
               </div>
 
               {/* Step Content */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                  <h3 className={`text-sm font-medium transition-colors duration-300 ${getStepColor(step.status)}`}>
-                    {step.title}
+                  <h3 className={`text-sm font-medium transition-colors duration-300 ${getStepColor(step, progressData.current_step)}`}>
+                    {text[language].steps[step.id as keyof typeof text.en.steps] || step.name}
                   </h3>
-                  {step.status === 'running' && (
+                  {step.id === progressData.current_step && step.progress < 100 && (
                     <span className="text-xs text-gray-400 font-mono">
                       {Math.floor(step.progress)}%
                     </span>
                   )}
                 </div>
                 
-                <p className="text-xs text-gray-500 mb-2">
-                  {step.description}
-                </p>
+                {step.id === progressData.current_step && (
+                  <p className="text-xs text-gray-500 mb-2">
+                    {progressData.message}
+                  </p>
+                )}
                 
-                {step.status === 'running' && (
+                {step.id === progressData.current_step && step.progress < 100 && (
                   <div className="w-full bg-gray-700/50 rounded-full h-1.5 overflow-hidden">
                     <div 
                       className="bg-gradient-to-r from-cyan-400 to-blue-500 h-1.5 rounded-full transition-all duration-300 ease-out"
@@ -302,8 +332,8 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
           </div>
           
           <div className="text-center p-3 bg-gray-800/30 rounded-lg">
-            <div className="text-lg font-bold text-purple-400">BRCA1/2</div>
-            <div className="text-xs text-gray-500">Target Genes</div>
+            <div className="text-lg font-bold text-purple-400">Python</div>
+            <div className="text-xs text-gray-500">Backend Engine</div>
           </div>
           
           <div className="text-center p-3 bg-gray-800/30 rounded-lg">
@@ -311,6 +341,33 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
             <div className="text-xs text-gray-500">Algorithm</div>
           </div>
         </div>
+
+        {/* Current Step Message */}
+        {progressData && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <span className="text-blue-400">🐍</span>
+              <div className="text-sm text-blue-300">
+                <strong>Python Backend:</strong> {text[language].steps[progressData.current_step as keyof typeof text.en.steps] || progressData.current_step}
+              </div>
+            </div>
+            <div className="text-sm text-blue-200 mt-1 ml-6">
+              {progressData.message}
+            </div>
+          </div>
+        )}
+
+        {/* Retry indicator */}
+        {error && retryCount < maxRetries && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <span className="text-yellow-400">🔄</span>
+              <div className="text-sm text-yellow-300">
+                {error}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* CSS for shimmer animation */}
         <style jsx>{`

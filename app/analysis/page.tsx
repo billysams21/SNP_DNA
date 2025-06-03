@@ -1,26 +1,98 @@
 'use client'
-import React, { useState, useEffect, useRef } from 'react'
+import { gsap } from 'gsap'
+import { useEffect, useRef, useState } from 'react'
+import AnalysisProgress from '../../components/AnalysisProgress'
+import ExportReport from '../../components/ExportReport'
 import FileUpload from '../../components/FileUpload'
 import SequenceInput from '../../components/SequenceInput'
-import AnalysisProgress from '../../components/AnalysisProgress'
 import SNPVisualization from '../../components/SNPVisualization'
 import StatisticsSummary from '../../components/StatisticsSummary'
-import ExportReport from '../../components/ExportReport'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card'
-import { FileUploadData, SequenceInputData, AnalysisResult } from '../../lib/types'
-import { gsap } from 'gsap'
+import { AnalysisResult, FileUploadData, SNPVariant, SequenceInputData, convertBackendVariant } from '../../lib/types'
 
 type AnalysisStep = 'input' | 'processing' | 'results'
 type InputMethod = 'file' | 'sequence'
 
+// Mock data generator for fallback
+const generateMockAnalysisResult = (analysisId: string): AnalysisResult => {
+  const mockVariants: SNPVariant[] = [
+    {
+      id: `${analysisId}_var_1`,
+      position: 100,
+      chromosome: "17",
+      gene: "BRCA1",
+      refAllele: "A",
+      altAllele: "G",
+      rsId: "rs80357914",
+      mutation: "A>G",
+      consequence: "missense_variant",
+      impact: "MODERATE",
+      clinicalSignificance: "PATHOGENIC",
+      confidence: 0.95,
+      frequency: 0.0001,
+      sources: ["ClinVar", "dbSNP"],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: `${analysisId}_var_2`,
+      position: 250,
+      chromosome: "17",
+      gene: "BRCA1",
+      refAllele: "C",
+      altAllele: "T",
+      rsId: "rs80357915",
+      mutation: "C>T",
+      consequence: "synonymous_variant",
+      impact: "LOW",
+      clinicalSignificance: "BENIGN",
+      confidence: 0.88,
+      frequency: 0.001,
+      sources: ["ClinVar", "dbSNP"],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  ]
+
+  return {
+    id: analysisId,
+    status: 'COMPLETED',
+    variants: mockVariants,
+    summary: {
+      totalVariants: mockVariants.length,
+      pathogenicVariants: mockVariants.filter(v => v.clinicalSignificance === 'PATHOGENIC').length,
+      likelyPathogenicVariants: mockVariants.filter(v => v.clinicalSignificance === 'LIKELY_PATHOGENIC').length,
+      uncertainVariants: mockVariants.filter(v => v.clinicalSignificance === 'UNCERTAIN_SIGNIFICANCE').length,
+      benignVariants: mockVariants.filter(v => v.clinicalSignificance === 'BENIGN').length,
+      overallRisk: 'MODERATE',
+      riskScore: 7.5,
+      recommendations: [
+        'Genetic counseling recommended',
+        'Continue routine screening',
+        'Discuss findings with healthcare provider'
+      ]
+    },
+    metadata: {
+      inputType: 'RAW_SEQUENCE',
+      algorithmVersion: '2.1.0',
+      qualityScore: 98.7,
+      processingTime: 45
+    },
+    progress: 100,
+    startTime: new Date(Date.now() - 45000), // 45 seconds ago
+    endTime: new Date()
+  }
+}
+
 export default function AnalysisPage() {
   const [language, setLanguage] = useState<'en' | 'id'>('en')
   const [currentStep, setCurrentStep] = useState<AnalysisStep>('input')
-  const [inputMethod, setInputMethod] = useState<InputMethod>('file')
+  const [inputMethod, setInputMethod] = useState<InputMethod>('sequence') // Default to sequence for manual input
   const [analysisId, setAnalysisId] = useState<string>('')
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [isUsingMockData, setIsUsingMockData] = useState(false)
 
   // GSAP refs
   const headerRef = useRef(null)
@@ -84,6 +156,8 @@ export default function AnalysisPage() {
       sequenceInput: 'Manual Input',
       sequenceInputDesc: 'Enter DNA sequence manually',
       backToInput: 'Start New Analysis',
+      mockDataNotice: 'Using simulated data (backend unavailable)',
+      realDataNotice: 'Connected to analysis backend',
       steps: {
         input: 'Input',
         processing: 'Processing',
@@ -99,6 +173,8 @@ export default function AnalysisPage() {
       sequenceInput: 'Input Manual',
       sequenceInputDesc: 'Masukkan sekuens DNA secara manual',
       backToInput: 'Mulai Analisis Baru',
+      mockDataNotice: 'Menggunakan data simulasi (backend tidak tersedia)',
+      realDataNotice: 'Terhubung ke backend analisis',
       steps: {
         input: 'Input',
         processing: 'Proses',
@@ -107,30 +183,54 @@ export default function AnalysisPage() {
     }
   }
 
-  const generateAnalysisId = (): string => {
-    return 'SNP_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
-  }
-
   const handleFileUpload = async (data: FileUploadData) => {
-    const newAnalysisId = generateAnalysisId()
+    // Note: File upload to backend will be implemented later
+    // For now, use mock analysis
+    const newAnalysisId = data.metadata?.analysisId || 'SNP_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
     setAnalysisId(newAnalysisId)
     setCurrentStep('processing')
+    setIsUsingMockData(true)
     
-    // Here you would typically send the file to your backend
     console.log('File upload data:', data)
   }
 
   const handleSequenceSubmit = async (data: SequenceInputData) => {
-    const newAnalysisId = generateAnalysisId()
+    const newAnalysisId = data.metadata?.analysisId || 'SNP_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
     setAnalysisId(newAnalysisId)
     setCurrentStep('processing')
     
-    // Here you would typically send the sequence to your backend
+    // Check if we're using mock data
+    setIsUsingMockData(!!data.metadata?.useMockData)
+    
     console.log('Sequence input data:', data)
+    console.log('Analysis ID:', newAnalysisId)
+    console.log('Using mock data:', !!data.metadata?.useMockData)
   }
 
   const handleAnalysisComplete = (result: AnalysisResult) => {
-    setAnalysisResult(result)
+    console.log('Analysis completed:', result)
+    
+    // Convert backend variants to frontend format if needed
+    const convertedResult: AnalysisResult = {
+      ...result,
+      variants: result.variants.map((variant: any) => {
+        // Check if variant needs conversion from backend format
+        if (variant.ref_allele || variant.alt_allele || variant.clinical_significance) {
+          return convertBackendVariant(variant)
+        }
+        return variant as SNPVariant
+      })
+    }
+    
+    setAnalysisResult(convertedResult)
+    setCurrentStep('results')
+  }
+
+  const handleMockAnalysisComplete = () => {
+    // Generate mock result when using fallback
+    const mockResult = generateMockAnalysisResult(analysisId)
+    console.log('Mock analysis completed:', mockResult)
+    setAnalysisResult(mockResult)
     setCurrentStep('results')
   }
 
@@ -139,6 +239,7 @@ export default function AnalysisPage() {
     setAnalysisId('')
     setAnalysisResult(null)
     setUploadProgress(0)
+    setIsUsingMockData(false)
   }
 
   const getStepNumber = (step: AnalysisStep): number => {
@@ -177,6 +278,20 @@ export default function AnalysisPage() {
             <p ref={descriptionRef} className="text-xl text-gray-400 max-w-3xl mx-auto">
               {text[language].description}
             </p>
+            
+            {/* Data Source Indicator */}
+            {(currentStep === 'processing' || currentStep === 'results') && (
+              <div className={`inline-flex items-center mt-4 px-4 py-2 rounded-full text-sm font-medium ${
+                isUsingMockData 
+                  ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' 
+                  : 'bg-green-500/20 text-green-400 border border-green-500/50'
+              }`}>
+                <div className={`w-2 h-2 rounded-full mr-2 ${
+                  isUsingMockData ? 'bg-yellow-400' : 'bg-green-400'
+                }`}></div>
+                {isUsingMockData ? text[language].mockDataNotice : text[language].realDataNotice}
+              </div>
+            )}
           </div>
 
           {/* Progress Steps */}
@@ -223,19 +338,6 @@ export default function AnalysisPage() {
                     <CardContent>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <button
-                          onClick={() => setInputMethod('file')}
-                          className={`p-6 rounded-xl border-2 transition-all duration-300 text-left ${
-                            inputMethod === 'file'
-                              ? 'border-cyan-400 bg-cyan-400/10'
-                              : 'border-gray-600 hover:border-gray-500'
-                          }`}
-                        >
-                          <div className="text-2xl mb-2">📄</div>
-                          <h3 className="font-semibold text-white mb-1">{text[language].fileUpload}</h3>
-                          <p className="text-sm text-gray-400">{text[language].fileUploadDesc}</p>
-                        </button>
-
-                        <button
                           onClick={() => setInputMethod('sequence')}
                           className={`p-6 rounded-xl border-2 transition-all duration-300 text-left ${
                             inputMethod === 'sequence'
@@ -247,21 +349,34 @@ export default function AnalysisPage() {
                           <h3 className="font-semibold text-white mb-1">{text[language].sequenceInput}</h3>
                           <p className="text-sm text-gray-400">{text[language].sequenceInputDesc}</p>
                         </button>
+
+                        <button
+                          onClick={() => setInputMethod('file')}
+                          className={`p-6 rounded-xl border-2 transition-all duration-300 text-left ${
+                            inputMethod === 'file'
+                              ? 'border-cyan-400 bg-cyan-400/10'
+                              : 'border-gray-600 hover:border-gray-500'
+                          }`}
+                        >
+                          <div className="text-2xl mb-2">📄</div>
+                          <h3 className="font-semibold text-white mb-1">{text[language].fileUpload}</h3>
+                          <p className="text-sm text-gray-400">{text[language].fileUploadDesc}</p>
+                        </button>
                       </div>
                     </CardContent>
                   </Card>
 
                   {/* Input Component */}
                   <div className="mt-8">
-                    {inputMethod === 'file' ? (
-                      <FileUpload
-                        onFileUpload={handleFileUpload}
-                        onProgress={setUploadProgress}
+                    {inputMethod === 'sequence' ? (
+                      <SequenceInput
+                        onSequenceSubmit={handleSequenceSubmit}
                         language={language}
                       />
                     ) : (
-                      <SequenceInput
-                        onSequenceSubmit={handleSequenceSubmit}
+                      <FileUpload
+                        onFileUpload={handleFileUpload}
+                        onProgress={setUploadProgress}
                         language={language}
                       />
                     )}
@@ -271,11 +386,36 @@ export default function AnalysisPage() {
 
               {currentStep === 'processing' && (
                 <div className="space-y-8">
-                  <AnalysisProgress
-                    analysisId={analysisId}
-                    onComplete={handleAnalysisComplete}
-                    language={language}
-                  />
+                  {isUsingMockData ? (
+                    // Mock progress component for when backend is unavailable
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <span className="text-2xl">🔬</span>
+                          Mock Analysis in Progress
+                        </CardTitle>
+                        <CardDescription>
+                          Simulating analysis (backend unavailable)
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-8">
+                          <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                          <p className="text-gray-400 mb-4">Running simulated analysis...</p>
+                          <Button onClick={handleMockAnalysisComplete} className="mt-4">
+                            Complete Mock Analysis
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    // Real progress component for backend analysis
+                    <AnalysisProgress
+                      analysisId={analysisId}
+                      onComplete={handleAnalysisComplete}
+                      language={language}
+                    />
+                  )}
                 </div>
               )}
 
@@ -285,7 +425,9 @@ export default function AnalysisPage() {
                   <div className="text-center">
                     <div className="inline-flex items-center px-4 py-2 bg-emerald-500/20 border border-emerald-500/50 rounded-full mb-4">
                       <span className="text-emerald-400 mr-2">✅</span>
-                      <span className="text-emerald-400 font-medium">Analysis Completed</span>
+                      <span className="text-emerald-400 font-medium">
+                        {language === 'en' ? 'Analysis Completed' : 'Analisis Selesai'}
+                      </span>
                     </div>
                     <Button onClick={handleNewAnalysis} variant="outline" className="ml-4">
                       {text[language].backToInput}
@@ -326,4 +468,4 @@ export default function AnalysisPage() {
       </div>
     </div>
   )
-} 
+}

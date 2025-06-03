@@ -1,22 +1,31 @@
 ﻿'use client'
-import React, { useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/Card'
-import { Button } from './ui/Button'
+import { snpifyAPI } from '@/lib/api/client'
 import { AnalysisResult } from '@/lib/types'
+import { useState } from 'react'
+import { Button } from './ui/Button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/Card'
 
 interface ExportReportProps {
   result: AnalysisResult
   language?: 'en' | 'id'
 }
 
+interface ExportStatus {
+  [key: string]: 'idle' | 'exporting' | 'success' | 'error'
+}
+
+interface ExportErrors {
+  [key: string]: string
+}
+
 export default function ExportReport({ result, language = 'en' }: ExportReportProps) {
-  const [isExporting, setIsExporting] = useState(false)
-  const [exportedFormat, setExportedFormat] = useState<string | null>(null)
+  const [exportStatus, setExportStatus] = useState<ExportStatus>({})
+  const [exportErrors, setExportErrors] = useState<ExportErrors>({})
 
   const text = {
     en: {
       title: 'Export Report',
-      description: 'Download your analysis results in various formats',
+      description: 'Download your analysis results from Python backend in various formats',
       formats: {
         pdf: {
           title: 'PDF Report',
@@ -44,11 +53,15 @@ export default function ExportReport({ result, language = 'en' }: ExportReportPr
       success: 'Export completed!',
       download: 'Download',
       size: 'File size',
-      generated: 'Generated on'
+      generated: 'Generated on',
+      backendExport: 'Export from Python Backend',
+      downloadReady: 'Download Ready',
+      exportFailed: 'Export Failed',
+      retry: 'Retry'
     },
     id: {
       title: 'Ekspor Laporan',
-      description: 'Unduh hasil analisis Anda dalam berbagai format',
+      description: 'Unduh hasil analisis dari backend Python dalam berbagai format',
       formats: {
         pdf: {
           title: 'Laporan PDF',
@@ -76,117 +89,125 @@ export default function ExportReport({ result, language = 'en' }: ExportReportPr
       success: 'Ekspor selesai!',
       download: 'Unduh',
       size: 'Ukuran file',
-      generated: 'Dibuat pada'
+      generated: 'Dibuat pada',
+      backendExport: 'Ekspor dari Backend Python',
+      downloadReady: 'Download Siap',
+      exportFailed: 'Ekspor Gagal',
+      retry: 'Coba Lagi'
     }
   }
 
   const exportFormats = [
     {
-      id: 'pdf',
-      icon: '📄',
-      ...text[language].formats.pdf
-    },
-    {
       id: 'json',
       icon: '📊',
-      ...text[language].formats.json
+      ...text[language].formats.json,
+      supported: true
     },
     {
       id: 'csv',
       icon: '📈',
-      ...text[language].formats.csv
+      ...text[language].formats.csv,
+      supported: true
     },
     {
       id: 'xml',
       icon: '📋',
-      ...text[language].formats.xml
+      ...text[language].formats.xml,
+      supported: true
+    },
+    {
+      id: 'pdf',
+      icon: '📄',
+      ...text[language].formats.pdf,
+      supported: false // PDF not implemented in Python backend yet
     }
   ]
 
   const handleExport = async (format: string) => {
-    setIsExporting(true)
-    setExportedFormat(null)
+    console.log(`📥 Starting export for format: ${format}`)
+    
+    setExportStatus(prev => ({ ...prev, [format]: 'exporting' }))
+    setExportErrors(prev => ({ ...prev, [format]: '' }))
 
-    // Simulate export process
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    // Generate mock file data based on format
-    let mockFileData = ''
-    let filename = ''
-    let fileSize = ''
-
-    switch (format) {
-      case 'pdf':
-        filename = `SNP_Analysis_${result.id}.pdf`
-        fileSize = '2.4 MB'
-        // In real implementation, you would generate actual PDF
-        break
-      case 'json':
-        filename = `SNP_Analysis_${result.id}.json`
-        fileSize = '156 KB'
-        mockFileData = JSON.stringify({
-          analysisId: result.id,
-          summary: result.summary,
-          metadata: result.metadata,
-          variants: result.variants,
-          exportedAt: new Date().toISOString()
-        }, null, 2)
-        break
-      case 'csv':
-        filename = `SNP_Variants_${result.id}.csv`
-        fileSize = '89 KB'
-        mockFileData = `ID,Chromosome,Position,Gene,Clinical_Significance,Impact
-1,17,43044295,BRCA1,PATHOGENIC,HIGH
-2,13,32315086,BRCA2,LIKELY_PATHOGENIC,MODERATE
-3,17,43057135,BRCA1,UNCERTAIN_SIGNIFICANCE,LOW
-4,13,32333271,BRCA2,BENIGN,MODIFIER
-5,17,43070927,BRCA1,LIKELY_BENIGN,LOW`
-        break
-      case 'xml':
-        filename = `SNP_Analysis_${result.id}.xml`
-        fileSize = '234 KB'
-        mockFileData = `<?xml version="1.0" encoding="UTF-8"?>
-<snp_analysis id="${result.id}">
-  <summary>
-    <total_variants>${result.summary.totalVariants}</total_variants>
-    <pathogenic_variants>${result.summary.pathogenicVariants}</pathogenic_variants>
-    <overall_risk>${result.summary.overallRisk}</overall_risk>
-    <risk_score>${result.summary.riskScore}</risk_score>
-  </summary>
-  <metadata>
-    <input_type>${result.metadata.inputType}</input_type>
-    <algorithm_version>${result.metadata.algorithmVersion}</algorithm_version>
-    <quality_score>${result.metadata.qualityScore}</quality_score>
-  </metadata>
-</snp_analysis>`
-        break
-    }
-
-    // Trigger download for non-PDF formats
-    if (format !== 'pdf' && mockFileData) {
-      const blob = new Blob([mockFileData], { type: 'text/plain' })
+    try {
+      // Export from Python backend
+      const blob = await snpifyAPI.exportResult(result.id, format)
+      
+      console.log(`✅ Export successful for ${format}`)
+      
+      // Create download URL and trigger download
       const url = URL.createObjectURL(blob)
+      const filename = `SNP_Analysis_${result.id}.${format}`
+      
+      // Create a temporary link element and trigger download
       const a = document.createElement('a')
       a.href = url
       a.download = filename
       document.body.appendChild(a)
       a.click()
+      
+      // Cleanup
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
+      
+      setExportStatus(prev => ({ ...prev, [format]: 'success' }))
+      
+    } catch (error: any) {
+      console.error(`❌ Export failed for ${format}:`, error)
+      setExportStatus(prev => ({ ...prev, [format]: 'error' }))
+      setExportErrors(prev => ({ 
+        ...prev, 
+        [format]: error.message || 'Export failed' 
+      }))
     }
-
-    setExportedFormat(format)
-    setIsExporting(false)
   }
 
   const getFileSize = (format: string) => {
+    // Estimate file sizes based on data complexity
+    const baseSize = result.variants.length * 100 // Base calculation
     const sizes = {
-      pdf: '2.4 MB',
-      json: '156 KB',
-      csv: '89 KB',
-      xml: '234 KB'
+      json: Math.round(baseSize * 1.5) + ' KB',
+      csv: Math.round(baseSize * 0.8) + ' KB', 
+      xml: Math.round(baseSize * 2.0) + ' KB',
+      pdf: Math.round(baseSize * 3.0) + ' KB'
     }
     return sizes[format as keyof typeof sizes] || 'Unknown'
+  }
+
+  const getButtonContent = (format: any) => {
+    const status = exportStatus[format.id] || 'idle'
+    const error = exportErrors[format.id]
+
+    if (status === 'exporting') {
+      return {
+        text: text[language].exporting,
+        variant: 'secondary' as const,
+        disabled: true,
+        loading: true
+      }
+    } else if (status === 'success') {
+      return {
+        text: text[language].success,
+        variant: 'success' as const,
+        disabled: false,
+        loading: false
+      }
+    } else if (status === 'error') {
+      return {
+        text: text[language].retry,
+        variant: 'destructive' as const,
+        disabled: false,
+        loading: false
+      }
+    } else {
+      return {
+        text: text[language].export,
+        variant: format.supported ? 'outline' as const : 'ghost' as const,
+        disabled: !format.supported,
+        loading: false
+      }
+    }
   }
 
   return (
@@ -202,63 +223,91 @@ export default function ExportReport({ result, language = 'en' }: ExportReportPr
       </CardHeader>
       
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {exportFormats.map((format) => (
-            <div
-              key={format.id}
-              className="p-4 border border-gray-700/50 rounded-xl bg-gray-800/30 hover:bg-gray-800/50 transition-all duration-200"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl">{format.icon}</span>
-                  <div>
-                    <h3 className="font-semibold text-white">{format.title}</h3>
-                    <p className="text-sm text-gray-400">{format.description}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-2 mb-4">
-                {format.features.map((feature, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full"></div>
-                    <span className="text-xs text-gray-300">{feature}</span>
-                  </div>
-                ))}
-              </div>
+        {/* Backend Info */}
+        <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <span className="text-blue-400">🐍</span>
+            <div className="text-sm text-blue-300">
+              <strong>{text[language].backendExport}:</strong> Files will be generated and downloaded from the Python FastAPI backend
+            </div>
+          </div>
+        </div>
 
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-gray-500">
-                  {text[language].size}: {getFileSize(format.id)}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {exportFormats.map((format) => {
+            const buttonProps = getButtonContent(format)
+            const status = exportStatus[format.id] || 'idle'
+            const error = exportErrors[format.id]
+
+            return (
+              <div
+                key={format.id}
+                className={`p-4 border rounded-xl transition-all duration-200 ${
+                  format.supported 
+                    ? 'border-gray-700/50 bg-gray-800/30 hover:bg-gray-800/50' 
+                    : 'border-gray-700/30 bg-gray-800/10 opacity-60'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">{format.icon}</span>
+                    <div>
+                      <h3 className="font-semibold text-white flex items-center gap-2">
+                        {format.title}
+                        {!format.supported && (
+                          <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">
+                            Coming Soon
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-sm text-gray-400">{format.description}</p>
+                    </div>
+                  </div>
                 </div>
                 
-                {exportedFormat === format.id ? (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-emerald-400 text-sm">✅ {text[language].success}</span>
-                    {format.id !== 'pdf' && (
-                      <Button 
-                        size="sm" 
-                        variant="success"
-                        onClick={() => handleExport(format.id)}
-                      >
-                        {text[language].download}
-                      </Button>
-                    )}
+                <div className="space-y-2 mb-4">
+                  {format.features.map((feature, index) => (
+                    <div key={index} className="flex items-center space-x-2">
+                      <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full"></div>
+                      <span className="text-xs text-gray-300">{feature}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Error Display */}
+                {error && (
+                  <div className="mb-3 p-2 bg-red-500/10 border border-red-500/50 rounded text-xs text-red-400">
+                    {error}
                   </div>
-                ) : (
+                )}
+
+                {/* Status and Action */}
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-gray-500">
+                    {text[language].size}: {getFileSize(format.id)}
+                  </div>
+                  
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant={buttonProps.variant}
                     onClick={() => handleExport(format.id)}
-                    disabled={isExporting}
-                    loading={isExporting}
+                    disabled={buttonProps.disabled}
+                    loading={buttonProps.loading}
                   >
-                    {isExporting ? text[language].exporting : text[language].export}
+                    {buttonProps.text}
                   </Button>
+                </div>
+
+                {/* Success indicator */}
+                {status === 'success' && (
+                  <div className="mt-2 text-xs text-emerald-400 flex items-center space-x-1">
+                    <span>✅</span>
+                    <span>{text[language].downloadReady}</span>
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Export Summary */}
@@ -283,8 +332,8 @@ export default function ExportReport({ result, language = 'en' }: ExportReportPr
             <span className="text-blue-400 mt-0.5">ℹ️</span>
             <div className="text-sm text-blue-300">
               <strong>Note:</strong> {language === 'en' 
-                ? 'Exported files contain sensitive genetic data. Please handle according to your institution\'s data protection policies.'
-                : 'File yang diekspor berisi data genetik sensitif. Harap tangani sesuai dengan kebijakan perlindungan data institusi Anda.'
+                ? 'Exported files are generated by the Python backend and contain real analysis results. Files contain sensitive genetic data - handle according to your institution\'s data protection policies.'
+                : 'File yang diekspor dihasilkan oleh backend Python dan berisi hasil analisis sebenarnya. File berisi data genetik sensitif - tangani sesuai dengan kebijakan perlindungan data institusi Anda.'
               }
             </div>
           </div>
