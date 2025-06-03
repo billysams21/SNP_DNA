@@ -7,6 +7,20 @@
 
 **SNPify** adalah aplikasi web canggih untuk analisis Single Nucleotide Polymorphism (SNP) dengan fokus khusus pada gen BRCA1 dan BRCA2. Platform ini menyediakan tools komprehensif untuk deteksi, visualisasi, dan analisis varian genetik yang berkaitan dengan predisposisi kanker payudara dan ovarium.
 
+## 👥 Contributors
+
+<div align="center">
+
+| **Dzulfaqor** | **Billy** | **Alvin** |
+|:---:|:---:|:---:|
+| Frontend Developer | Backend Developer | Researcher |
+| [![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/dzulfaqorali196) | [![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/billy) | [![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/alvin) |
+| [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/dzulfaqor-ali-d-85bb241a1) | [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/billy) | [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/alvin) |
+
+*Passionate team of developers and researchers dedicated to advancing genetic analysis technology*
+
+</div>
+
 ## ✨ Fitur Utama
 
 ### 🔬 Analisis Genetik Mendalam
