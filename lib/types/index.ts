@@ -1,0 +1,356 @@
+﻿// =====================================================
+// SNPify - Type Definitions
+// =====================================================
+
+// Base Types
+export type Gene = 'BRCA1' | 'BRCA2';
+export type Algorithm = 'boyer-moore' | 'kmp' | 'rabin-karp' | 'naive';
+export type FileFormat = 'fasta' | 'fastq' | 'txt';
+export type ExportFormat = 'json' | 'csv' | 'xml' | 'pdf';
+
+// DNA Sequence Types
+export interface DNASequence {
+  id: string;
+  name: string;
+  sequence: string;
+  length: number;
+  description?: string;
+  source?: string;
+  timestamp: Date;
+}
+
+export interface ReferenceSequence extends DNASequence {
+  gene: Gene;
+  version: string;
+  annotation?: AnnotationData[];
+}
+
+// SNP Analysis Types
+export interface SNPPosition {
+  position: number;
+  referenceAllele: string;
+  alternativeAllele: string;
+  quality: number;
+  confidence: number;
+  type: 'substitution' | 'insertion' | 'deletion';
+}
+
+export interface SNPResult {
+  id: string;
+  position: number;
+  referenceAllele: string;
+  alternativeAllele: string;
+  quality: number;
+  confidence: number;
+  type: 'substitution' | 'insertion' | 'deletion';
+  consequence?: 'synonymous' | 'missense' | 'nonsense' | 'frameshift';
+  clinicalSignificance?: 'pathogenic' | 'likely-pathogenic' | 'uncertain' | 'likely-benign' | 'benign';
+  frequency?: number;
+  chromosome?: string;
+  gene: Gene;
+}
+
+// Analysis Types
+export interface AnalysisRequest {
+  sequence: string;
+  referenceGene: Gene;
+  algorithm: Algorithm;
+  parameters?: AnalysisParameters;
+}
+
+export interface AnalysisParameters {
+  mismatchTolerance?: number;
+  minimumQuality?: number;
+  windowSize?: number;
+  gapPenalty?: number;
+  matchScore?: number;
+  mismatchScore?: number;
+}
+
+export interface AnalysisResult {
+  id: string;
+  timestamp: Date;
+  algorithm: Algorithm;
+  referenceGene: Gene;
+  snps: SNPResult[];
+  statistics: AnalysisStatistics;
+  alignment?: AlignmentResult;
+  quality: QualityMetrics;
+  processingTime: number;
+  status: 'completed' | 'error' | 'processing';
+}
+
+export interface AnalysisStatistics {
+  totalSNPs: number;
+  substitutions: number;
+  insertions: number;
+  deletions: number;
+  pathogenicVariants: number;
+  benignVariants: number;
+  uncertainVariants: number;
+  averageQuality: number;
+  sequenceLength: number;
+  coverage: number;
+  similarity: number;
+}
+
+// Alignment Types
+export interface AlignmentResult {
+  score: number;
+  identity: number;
+  similarity: number;
+  gaps: number;
+  alignedSequence: string;
+  alignedReference: string;
+  startPosition: number;
+  endPosition: number;
+  cigar?: string;
+}
+
+export interface AlignmentMatch {
+  position: number;
+  length: number;
+  score: number;
+  type: 'match' | 'mismatch' | 'gap';
+}
+
+// Quality Metrics
+export interface QualityMetrics {
+  overall: number;
+  perBase: number[];
+  gc_content: number;
+  n_count: number;
+  ambiguous_bases: number;
+  coverage_uniformity: number;
+}
+
+// File Processing Types
+export interface FileUploadResult {
+  success: boolean;
+  filename: string;
+  size: number;
+  format: FileFormat;
+  sequences: DNASequence[];
+  errors?: string[];
+  warnings?: string[];
+}
+
+export interface FASTAEntry {
+  header: string;
+  sequence: string;
+  id: string;
+  description?: string;
+}
+
+// Annotation Types
+export interface AnnotationData {
+  start: number;
+  end: number;
+  type: 'exon' | 'intron' | 'utr' | 'coding' | 'regulatory';
+  name: string;
+  description?: string;
+  strand: '+' | '-';
+}
+
+// Visualization Types
+export interface ChartData {
+  position: number;
+  value: number;
+  category?: string;
+  color?: string;
+  label?: string;
+}
+
+export interface SNPVisualizationData {
+  distributionData: ChartData[];
+  qualityData: ChartData[];
+  typeDistribution: {
+    substitutions: number;
+    insertions: number;
+    deletions: number;
+  };
+  clinicalSignificance: {
+    pathogenic: number;
+    benign: number;
+    uncertain: number;
+  };
+}
+
+// Progress Tracking
+export interface AnalysisProgress {
+  step: string;
+  progress: number;
+  message: string;
+  estimatedTime?: number;
+  currentOperation?: string;
+}
+
+// Error Handling
+export interface ErrorInfo {
+  code: string;
+  message: string;
+  details?: any;
+  timestamp: Date;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+}
+
+// API Types
+export interface APIResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: ErrorInfo;
+  metadata?: {
+    version: string;
+    timestamp: Date;
+    processingTime: number;
+  };
+}
+
+// Component Props Types
+export interface ButtonProps {
+  variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'outline';
+  size?: 'sm' | 'md' | 'lg';
+  disabled?: boolean;
+  loading?: boolean;
+  children: React.ReactNode;
+  onClick?: () => void;
+  type?: 'button' | 'submit' | 'reset';
+  className?: string;
+}
+
+export interface CardProps {
+  title?: string;
+  description?: string;
+  children: React.ReactNode;
+  className?: string;
+  variant?: 'default' | 'bordered' | 'elevated';
+}
+
+export interface InputProps {
+  label?: string;
+  placeholder?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  error?: string;
+  disabled?: boolean;
+  required?: boolean;
+  type?: 'text' | 'email' | 'password' | 'number' | 'url';
+  className?: string;
+}
+
+export interface SelectProps {
+  label?: string;
+  options: { value: string; label: string; disabled?: boolean }[];
+  value?: string;
+  onChange?: (value: string) => void;
+  placeholder?: string;
+  error?: string;
+  disabled?: boolean;
+  required?: boolean;
+  className?: string;
+}
+
+export interface TableColumn<T = any> {
+  key: string;
+  title: string;
+  dataIndex?: keyof T;
+  width?: number;
+  render?: (value: any, record: T, index: number) => React.ReactNode;
+  sortable?: boolean;
+  filterable?: boolean;
+  align?: 'left' | 'center' | 'right';
+}
+
+export interface TableProps<T = any> {
+  columns: TableColumn<T>[];
+  data: T[];
+  loading?: boolean;
+  pagination?: {
+    current: number;
+    pageSize: number;
+    total: number;
+    onChange: (page: number, pageSize: number) => void;
+  };
+  onSort?: (column: string, direction: 'asc' | 'desc') => void;
+  className?: string;
+}
+
+// Settings and Configuration
+export interface AppSettings {
+  theme: 'light' | 'dark' | 'auto';
+  language: 'en' | 'id';
+  defaultAlgorithm: Algorithm;
+  qualityThreshold: number;
+  enableNotifications: boolean;
+  maxFileSize: number;
+  autoSave: boolean;
+}
+
+export interface UserPreferences {
+  favoriteGenes: Gene[];
+  recentAnalyses: string[];
+  customAnnotations: AnnotationData[];
+  exportSettings: {
+    format: ExportFormat;
+    includeStatistics: boolean;
+    includeAlignment: boolean;
+  };
+}
+
+// Database Types (if using a database)
+export interface AnalysisRecord {
+  id: string;
+  userId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  name: string;
+  description?: string;
+  inputSequence: string;
+  results: AnalysisResult;
+  shared: boolean;
+  tags: string[];
+}
+
+export interface UserSession {
+  id: string;
+  userId?: string;
+  analyses: AnalysisRecord[];
+  preferences: UserPreferences;
+  createdAt: Date;
+  lastActivity: Date;
+}
+
+// Utility Types
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
+
+export type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
+
+export type OptionalFields<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+
+// Constants
+export const SUPPORTED_ALGORITHMS: Algorithm[] = ['boyer-moore', 'kmp', 'rabin-karp', 'naive'];
+export const SUPPORTED_GENES: Gene[] = ['BRCA1', 'BRCA2'];
+export const SUPPORTED_FILE_FORMATS: FileFormat[] = ['fasta', 'fastq', 'txt'];
+export const SUPPORTED_EXPORT_FORMATS: ExportFormat[] = ['json', 'csv', 'xml', 'pdf'];
+
+// Default Values
+export const DEFAULT_ANALYSIS_PARAMETERS: AnalysisParameters = {
+  mismatchTolerance: 2,
+  minimumQuality: 20,
+  windowSize: 100,
+  gapPenalty: -1,
+  matchScore: 2,
+  mismatchScore: -1,
+};
+
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  theme: 'light',
+  language: 'en',
+  defaultAlgorithm: 'boyer-moore',
+  qualityThreshold: 20,
+  enableNotifications: true,
+  maxFileSize: 10 * 1024 * 1024, // 10MB
+  autoSave: true,
+};
