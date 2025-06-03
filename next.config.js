@@ -8,6 +8,12 @@ const nextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
 
+  // Exclude API routes from build (since backend will be developed separately)
+  pageExtensions: ['page.tsx', 'page.ts', 'tsx', 'ts'].filter(ext => {
+    // Skip API routes during build
+    return !ext.includes('api');
+  }),
+
   // Webpack configuration for bioinformatics libraries
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     // Handle .node files for native modules
@@ -56,6 +62,12 @@ const nextConfig = {
       stream: false,
       buffer: false,
     };
+
+    // Exclude API directory from compilation
+    config.module.rules.push({
+      test: /app\/api\/.*\.(ts|tsx|js|jsx)$/,
+      use: 'ignore-loader',
+    });
 
     return config;
   },

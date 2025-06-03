@@ -1,0 +1,13 @@
+# Ignore API backend files during deployment
+app/api/
+
+# Ignore backend-related directories if any
+lib/algorithms/
+lib/analysis/
+
+# Ignore test files
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx 
