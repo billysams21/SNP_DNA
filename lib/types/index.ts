@@ -541,3 +541,31 @@ export interface ReportSection {
   config: Record<string, any>;
   order: number;
 }
+
+export interface APIAnalysisRequest {
+  sequence: string;
+  gene: 'BRCA1' | 'BRCA2';
+  algorithm: 'boyer-moore' | 'kmp' | 'rabin-karp';
+  sequence_type: 'DNA' | 'PROTEIN';
+  metadata?: Record<string, any>;
+}
+
+export interface APIAnalysisResponse {
+  analysis_id: string;
+  status: string;
+  message: string;
+  estimated_time: string;
+}
+
+export interface APIAnalysisProgress {
+  analysis_id: string;
+  progress: number;
+  current_step: string;
+  message: string;
+  steps: Array<{
+    id: string;
+    name: string;
+    progress: number;
+    weight: number;
+  }>;
+}
