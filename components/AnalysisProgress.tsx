@@ -1,6 +1,6 @@
 ﻿'use client'
 import { snpifyAPI } from '@/lib/api/client'
-import { AnalysisResult, convertBackendVariant } from '@/lib/types'
+import { AnalysisResult } from '@/lib/types'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/Card'
 
@@ -81,6 +81,76 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
     }
   }
 
+  // Enhanced result conversion function from file 2
+  const convertBackendToFrontend = (backendResult: any): AnalysisResult => {
+    console.log('🔄 Converting backend result for frontend:', backendResult);
+    
+    // Ensure we have the data
+    const data = backendResult.data || backendResult;
+    
+    // Convert variants with proper mapping
+    const variants = (data.variants || []).map((variant: any) => ({
+      id: variant.id,
+      position: variant.position,
+      chromosome: variant.chromosome,
+      gene: variant.gene,
+      refAllele: variant.ref_allele || variant.refAllele,
+      altAllele: variant.alt_allele || variant.altAllele,
+      rsId: variant.rs_id || variant.rsId,
+      mutation: variant.mutation,
+      consequence: variant.consequence,
+      impact: variant.impact,
+      clinicalSignificance: variant.clinical_significance || variant.clinicalSignificance,
+      confidence: variant.confidence,
+      frequency: variant.frequency,
+      sources: variant.sources || [],
+      createdAt: new Date(variant.created_at || variant.createdAt || Date.now()),
+      updatedAt: new Date(variant.updated_at || variant.updatedAt || Date.now())
+    }));
+
+    // CRITICAL FIX: Ensure summary data is properly extracted
+    const summary = {
+      totalVariants: data.summary?.total_variants || variants.length,
+      pathogenicVariants: data.summary?.pathogenic_variants || 0,
+      likelyPathogenicVariants: data.summary?.likely_pathogenic_variants || 0,
+      uncertainVariants: data.summary?.uncertain_variants || variants.length,
+      benignVariants: data.summary?.benign_variants || 0,
+      overallRisk: data.summary?.overall_risk || 'LOW',
+      riskScore: data.summary?.risk_score || 0,
+      recommendations: data.summary?.recommendations || []
+    };
+
+    // CRITICAL FIX: Ensure metadata is properly mapped
+    const metadata = {
+      inputType: data.metadata?.input_type || 'RAW_SEQUENCE',
+      fileName: data.metadata?.file_name,
+      fileSize: data.metadata?.file_size,
+      processingTime: data.metadata?.processing_time,
+      algorithmVersion: data.metadata?.algorithm_version || '2.1.0',
+      qualityScore: data.metadata?.quality_score || 95,
+      coverage: data.metadata?.coverage,
+      readDepth: data.metadata?.read_depth
+    };
+
+    const result: AnalysisResult = {
+      id: data.id,
+      status: data.status || 'COMPLETED',
+      variants,
+      summary,
+      metadata,
+      progress: data.progress || 100,
+      startTime: new Date(data.start_time || data.startTime || Date.now()),
+      endTime: data.end_time ? new Date(data.end_time) : new Date(),
+      error: data.error
+    };
+
+    console.log('✅ Converted result:', result);
+    console.log('📊 Summary check:', result.summary);
+    console.log('📋 Metadata check:', result.metadata);
+    
+    return result;
+  };
+
   // Clear any cached data when analysisId changes
   useEffect(() => {
     console.log(`🔄 AnalysisProgress: New analysis started for ID: ${analysisId}`)
@@ -130,53 +200,25 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
             
             // Fetch final result from Python backend
             const result = await snpifyAPI.getAnalysisResult(analysisId)
-            console.log('📋 Final result received:', result)
-            console.log('🧬 Raw variants from backend:', result.variants)
-            
-            // Debug: Log variant conversion
-            if (result.variants && result.variants.length > 0) {
-              console.log('🔍 Converting variants:')
-              result.variants.forEach((variant: any, index: number) => {
-                console.log(`Variant ${index + 1}:`, variant)
-                const converted = convertBackendVariant(variant)
-                console.log(`Converted:`, converted)
-              })
-            } else {
-              console.warn('⚠️ No variants in backend result!')
-            }
+            console.log('📋 Raw backend result received:', result)
             
             if (result.status === 'COMPLETED') {
-              // Convert backend result to frontend format
-              const convertedResult: AnalysisResult = {
-                ...result,
-                variants: result.variants?.map((variant: any) => {
-                  console.log('🔄 Converting variant:', variant)
-                  return convertBackendVariant(variant)
-                }) || [],
-                // Ensure all required fields are present
-                summary: {
-                  totalVariants: result.summary?.total_variants || result.variants?.length || 0,
-                  pathogenicVariants: result.summary?.pathogenic_variants || 0,
-                  likelyPathogenicVariants: result.summary?.likely_pathogenic_variants || 0,
-                  uncertainVariants: result.summary?.uncertain_variants || 0,
-                  benignVariants: result.summary?.benign_variants || 0,
-                  overallRisk: result.summary?.overall_risk || 'LOW',
-                  riskScore: result.summary?.risk_score || 0,
-                  recommendations: result.summary?.recommendations || []
-                },
-                metadata: {
-                  inputType: result.metadata?.input_type || 'RAW_SEQUENCE',
-                  fileName: result.metadata?.file_name,
-                  fileSize: result.metadata?.file_size,
-                  processingTime: result.metadata?.processing_time,
-                  algorithmVersion: result.metadata?.algorithm_version || '2.1.0',
-                  qualityScore: result.metadata?.quality_score || 95,
-                  coverage: result.metadata?.coverage,
-                  readDepth: result.metadata?.read_depth
-                }
+              // CRITICAL: Use our enhanced conversion function
+              const convertedResult = convertBackendToFrontend(result);
+              
+              // Additional validation for Boyer-Moore specific issues
+              if (convertedResult.summary.totalVariants === 0 && convertedResult.variants.length > 0) {
+                console.warn('⚠️ Summary mismatch detected - fixing...');
+                convertedResult.summary.totalVariants = convertedResult.variants.length;
+                convertedResult.summary.uncertainVariants = convertedResult.variants.length;
               }
               
-              console.log('✅ Converted result for frontend:', convertedResult)
+              if (!convertedResult.metadata.inputType) {
+                console.warn('⚠️ Missing input type - fixing...');
+                convertedResult.metadata.inputType = 'RAW_SEQUENCE';
+              }
+              
+              console.log('✅ Final converted result for frontend:', convertedResult)
               console.log('📊 Final variant count:', convertedResult.variants.length)
               
               // Update debug info with final result

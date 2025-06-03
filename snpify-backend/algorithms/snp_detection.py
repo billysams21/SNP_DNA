@@ -153,7 +153,6 @@ class SNPDetector:
     
     def _align_sequences(self, query: str, reference: str) -> Tuple[str, str]:
         """Simple sequence alignment for variant detection"""
-        # For simplicity, we'll use a basic alignment
         # In production, use proper alignment algorithms like Smith-Waterman
         
         min_length = min(len(query), len(reference))

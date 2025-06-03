@@ -189,3 +189,98 @@ export const DEFAULT_APP_SETTINGS = {
   maxFileSize: 10 * 1024 * 1024, // 10MB
   autoSave: true,
 };
+
+export const convertBackendResult = (backendResult: any): AnalysisResult => {
+  console.log('🔄 Converting backend result:', backendResult);
+  
+  const data = backendResult.data || backendResult;
+  
+  return {
+    id: data.id,
+    status: data.status || 'COMPLETED',
+    
+    variants: (data.variants || []).map((variant: any) => {
+      console.log('🧬 Converting variant:', variant);
+      return {
+        id: variant.id,
+        position: variant.position,
+        chromosome: variant.chromosome,
+        gene: variant.gene,
+        refAllele: variant.ref_allele || variant.refAllele,
+        altAllele: variant.alt_allele || variant.altAllele,
+        rsId: variant.rs_id || variant.rsId,
+        mutation: variant.mutation,
+        consequence: variant.consequence,
+        impact: variant.impact,
+        clinicalSignificance: variant.clinical_significance || variant.clinicalSignificance,
+        confidence: variant.confidence,
+        frequency: variant.frequency,
+        sources: variant.sources || [],
+        createdAt: new Date(variant.created_at || variant.createdAt || Date.now()),
+        updatedAt: new Date(variant.updated_at || variant.updatedAt || Date.now())
+      };
+    }),
+    
+    summary: {
+      totalVariants: data.summary?.total_variants || data.variants?.length || 0,
+      pathogenicVariants: data.summary?.pathogenic_variants || 0,
+      likelyPathogenicVariants: data.summary?.likely_pathogenic_variants || 0,
+      uncertainVariants: data.summary?.uncertain_variants || data.variants?.length || 0,
+      benignVariants: data.summary?.benign_variants || 0,
+      overallRisk: data.summary?.overall_risk || 'LOW',
+      riskScore: data.summary?.risk_score || 0,
+      recommendations: data.summary?.recommendations || []
+    },
+    
+    // FIXED: Ensure metadata is properly mapped
+    metadata: {
+      inputType: data.metadata?.input_type || 'RAW_SEQUENCE',
+      fileName: data.metadata?.file_name,
+      fileSize: data.metadata?.file_size,
+      processingTime: data.metadata?.processing_time,
+      algorithmVersion: data.metadata?.algorithm_version || '2.1.0',
+      qualityScore: data.metadata?.quality_score || 95,
+      coverage: data.metadata?.coverage,
+      readDepth: data.metadata?.read_depth
+    },
+    
+    progress: data.progress || 100,
+    startTime: new Date(data.start_time || data.startTime || Date.now()),
+    endTime: data.end_time ? new Date(data.end_time) : new Date(),
+    error: data.error
+  };
+};
+
+export const debugAnalysisResult = (result: any, analysisId: string) => {
+  console.group(`🔍 Analysis Result Debug - ${analysisId}`);
+  
+  console.log('📊 Raw backend result:', result);
+  console.log('🧬 Variants array:', result?.variants);
+  console.log('📈 Summary object:', result?.summary);
+  console.log('📋 Metadata object:', result?.metadata);
+  
+  // Check for specific Boyer-Moore issues
+  if (result?.metadata?.algorithm_version) {
+    console.log('⚙️ Algorithm used:', result.metadata.algorithm_version);
+  }
+  
+  // Validate data completeness
+  const issues = [];
+  if (!result?.variants || result.variants.length === 0) {
+    issues.push('❌ No variants found');
+  }
+  if (!result?.summary) {
+    issues.push('❌ Summary missing');
+  }
+  if (!result?.metadata) {
+    issues.push('❌ Metadata missing');
+  }
+  
+  if (issues.length > 0) {
+    console.error('🚨 Data Issues Found:', issues);
+  } else {
+    console.log('✅ All data structures present');
+  }
+  
+  console.groupEnd();
+};
