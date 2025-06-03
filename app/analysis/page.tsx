@@ -112,18 +112,15 @@ export default function AnalysisPage() {
   }
 
   const handleFileUpload = async (data: FileUploadData) => {
-    console.log('📄 File upload initiated:', data)
-    
-    // Generate analysis ID from metadata or create new one
-    const newAnalysisId = data.metadata?.analysisId || 'SNP_FILE_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
-    
-    console.log('🆔 Setting analysis ID:', newAnalysisId)
-    setAnalysisId(newAnalysisId)
-    setCurrentStep('processing')
-    
-    // Note: File upload to backend will be implemented when backend supports file upload endpoint
-    console.log('⚠️ File upload to backend not yet implemented - will use mock for now')
-  }
+    console.log('📄 File upload initiatedooo:', data)
+    const id = data.metadata?.analysisId
+    if (id) {
+      setAnalysisId(id)
+      setCurrentStep('processing')
+    } else {
+      console.error('❌ No analysis ID received from file upload')
+    }
+  } 
 
   const handleSequenceSubmit = async (data: SequenceInputData) => {
     console.log('🧬 Sequence submission initiated:', data)
@@ -290,7 +287,6 @@ export default function AnalysisPage() {
                     ) : (
                       <FileUpload
                         onFileUpload={handleFileUpload}
-                        onProgress={setUploadProgress}
                         language={language}
                       />
                     )}

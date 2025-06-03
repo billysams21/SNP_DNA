@@ -85,22 +85,13 @@ class SNPifyAPIClient {
   }
 
   async analyzeFile(request: FileAnalysisRequest): Promise<any> {
-    console.log('📄 Starting file analysis...', {
-      filename: request.file.name,
-      filesize: request.file.size,
-      gene: request.gene,
-      algorithm: request.algorithm
-    });
-    
+    console.log('📡 Sending file to backend:', `${this.baseURL}/api/analyze/file`);
+
     const formData = new FormData();
     formData.append('file', request.file);
     formData.append('gene', request.gene);
     formData.append('algorithm', request.algorithm);
     
-    if (request.metadata) {
-      formData.append('metadata', JSON.stringify(request.metadata));
-    }
-
     const response = await fetch(`${this.baseURL}/api/analyze/file`, {
       method: 'POST',
       body: formData,
