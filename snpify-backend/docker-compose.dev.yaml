@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      # Disable cache for development
+      cache_from: []
+    ports:
+      - "8000:8000"
+    volumes:
+      # Bind mount untuk development - pastikan path absolut
+      - type: bind
+        source: .
+        target: /app
+        consistency: delegated
+      - /app/node_modules  # Anonymous volume untuk node_modules
+      # Volume terpisah untuk storage
+      - ./storage:/app/storage
+    environment:
+      - DEBUG=True
+      - PYTHONUNBUFFERED=1
+      - WATCHDOG_TIMEOUT=30
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Development specific
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /app
+          ignore:
+            - __pycache__/
+            - "*.pyc"
+            - .git/
+            - storage/
+        - action: rebuild
+          path: requirements.txt

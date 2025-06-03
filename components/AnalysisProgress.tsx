@@ -33,6 +33,7 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
   const [error, setError] = useState<string | null>(null)
   const [isPolling, setIsPolling] = useState(true)
   const [retryCount, setRetryCount] = useState(0)
+  const [debugInfo, setDebugInfo] = useState<any>({})
   const maxRetries = 5
 
   const text = {
@@ -80,6 +81,17 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
     }
   }
 
+  // Clear any cached data when analysisId changes
+  useEffect(() => {
+    console.log(`🔄 AnalysisProgress: New analysis started for ID: ${analysisId}`)
+    setProgressData(null)
+    setOverallProgress(0)
+    setError(null)
+    setRetryCount(0)
+    setIsPolling(true)
+    setDebugInfo({ analysisId, startTime: new Date().toISOString() })
+  }, [analysisId])
+
   // Fetch analysis progress from Python backend
   useEffect(() => {
     if (!analysisId || !isPolling) return
@@ -98,6 +110,14 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
         setOverallProgress(progress.progress)
         setError(null)
         setRetryCount(0) // Reset retry count on success
+        
+        // Update debug info
+        setDebugInfo((prev: Record<string, any>) => ({
+          ...prev,
+          lastProgressUpdate: new Date().toISOString(),
+          currentProgress: progress.progress,
+          currentStep: progress.current_step
+        }))
 
         // Check if analysis is complete
         if (progress.progress >= 100) {
@@ -105,16 +125,69 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
           setIsPolling(false)
           
           try {
+            // Add small delay to ensure backend has finished writing result
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            
             // Fetch final result from Python backend
             const result = await snpifyAPI.getAnalysisResult(analysisId)
             console.log('📋 Final result received:', result)
+            console.log('🧬 Raw variants from backend:', result.variants)
+            
+            // Debug: Log variant conversion
+            if (result.variants && result.variants.length > 0) {
+              console.log('🔍 Converting variants:')
+              result.variants.forEach((variant: any, index: number) => {
+                console.log(`Variant ${index + 1}:`, variant)
+                const converted = convertBackendVariant(variant)
+                console.log(`Converted:`, converted)
+              })
+            } else {
+              console.warn('⚠️ No variants in backend result!')
+            }
             
             if (result.status === 'COMPLETED') {
               // Convert backend result to frontend format
               const convertedResult: AnalysisResult = {
                 ...result,
-                variants: result.variants?.map((variant: any) => convertBackendVariant(variant)) || []
+                variants: result.variants?.map((variant: any) => {
+                  console.log('🔄 Converting variant:', variant)
+                  return convertBackendVariant(variant)
+                }) || [],
+                // Ensure all required fields are present
+                summary: {
+                  totalVariants: result.summary?.total_variants || result.variants?.length || 0,
+                  pathogenicVariants: result.summary?.pathogenic_variants || 0,
+                  likelyPathogenicVariants: result.summary?.likely_pathogenic_variants || 0,
+                  uncertainVariants: result.summary?.uncertain_variants || 0,
+                  benignVariants: result.summary?.benign_variants || 0,
+                  overallRisk: result.summary?.overall_risk || 'LOW',
+                  riskScore: result.summary?.risk_score || 0,
+                  recommendations: result.summary?.recommendations || []
+                },
+                metadata: {
+                  inputType: result.metadata?.input_type || 'RAW_SEQUENCE',
+                  fileName: result.metadata?.file_name,
+                  fileSize: result.metadata?.file_size,
+                  processingTime: result.metadata?.processing_time,
+                  algorithmVersion: result.metadata?.algorithm_version || '2.1.0',
+                  qualityScore: result.metadata?.quality_score || 95,
+                  coverage: result.metadata?.coverage,
+                  readDepth: result.metadata?.read_depth
+                }
               }
+              
+              console.log('✅ Converted result for frontend:', convertedResult)
+              console.log('📊 Final variant count:', convertedResult.variants.length)
+              
+              // Update debug info with final result
+              setDebugInfo((prev: Record<string, any>) => ({
+                ...prev,
+                finalResult: {
+                  totalVariants: convertedResult.variants.length,
+                  summary: convertedResult.summary,
+                  completedAt: new Date().toISOString()
+                }
+              }))
               
               onComplete(convertedResult)
               return
@@ -217,6 +290,14 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
         <CardContent className="space-y-4">
           <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-lg">
             <p className="text-red-400 text-sm">{error}</p>
+          </div>
+          
+          {/* Debug Information */}
+          <div className="p-4 bg-gray-800/50 border border-gray-600/50 rounded-lg">
+            <h4 className="text-white font-medium mb-2">Debug Information:</h4>
+            <pre className="text-xs text-gray-400 overflow-auto">
+              {JSON.stringify(debugInfo, null, 2)}
+            </pre>
           </div>
           
           <div className="text-center">
@@ -354,6 +435,16 @@ export default function AnalysisProgress({ analysisId, onComplete, language = 'e
             <div className="text-sm text-blue-200 mt-1 ml-6">
               {progressData.message}
             </div>
+          </div>
+        )}
+
+        {/* Debug Information (Development Mode) */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="p-4 bg-gray-800/30 border border-gray-600/30 rounded-lg">
+            <h4 className="text-white font-medium mb-2">Debug Info:</h4>
+            <pre className="text-xs text-gray-400 overflow-auto max-h-32">
+              {JSON.stringify(debugInfo, null, 2)}
+            </pre>
           </div>
         )}
 

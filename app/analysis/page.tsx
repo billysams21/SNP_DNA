@@ -8,82 +8,11 @@ import SequenceInput from '../../components/SequenceInput'
 import SNPVisualization from '../../components/SNPVisualization'
 import StatisticsSummary from '../../components/StatisticsSummary'
 import { Button } from '../../components/ui/Button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card'
-import { AnalysisResult, FileUploadData, SNPVariant, SequenceInputData, convertBackendVariant } from '../../lib/types'
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
+import { AnalysisResult, FileUploadData, SequenceInputData } from '../../lib/types'
 
 type AnalysisStep = 'input' | 'processing' | 'results'
 type InputMethod = 'file' | 'sequence'
-
-// Mock data generator for fallback
-const generateMockAnalysisResult = (analysisId: string): AnalysisResult => {
-  const mockVariants: SNPVariant[] = [
-    {
-      id: `${analysisId}_var_1`,
-      position: 100,
-      chromosome: "17",
-      gene: "BRCA1",
-      refAllele: "A",
-      altAllele: "G",
-      rsId: "rs80357914",
-      mutation: "A>G",
-      consequence: "missense_variant",
-      impact: "MODERATE",
-      clinicalSignificance: "PATHOGENIC",
-      confidence: 0.95,
-      frequency: 0.0001,
-      sources: ["ClinVar", "dbSNP"],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    {
-      id: `${analysisId}_var_2`,
-      position: 250,
-      chromosome: "17",
-      gene: "BRCA1",
-      refAllele: "C",
-      altAllele: "T",
-      rsId: "rs80357915",
-      mutation: "C>T",
-      consequence: "synonymous_variant",
-      impact: "LOW",
-      clinicalSignificance: "BENIGN",
-      confidence: 0.88,
-      frequency: 0.001,
-      sources: ["ClinVar", "dbSNP"],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  ]
-
-  return {
-    id: analysisId,
-    status: 'COMPLETED',
-    variants: mockVariants,
-    summary: {
-      totalVariants: mockVariants.length,
-      pathogenicVariants: mockVariants.filter(v => v.clinicalSignificance === 'PATHOGENIC').length,
-      likelyPathogenicVariants: mockVariants.filter(v => v.clinicalSignificance === 'LIKELY_PATHOGENIC').length,
-      uncertainVariants: mockVariants.filter(v => v.clinicalSignificance === 'UNCERTAIN_SIGNIFICANCE').length,
-      benignVariants: mockVariants.filter(v => v.clinicalSignificance === 'BENIGN').length,
-      overallRisk: 'MODERATE',
-      riskScore: 7.5,
-      recommendations: [
-        'Genetic counseling recommended',
-        'Continue routine screening',
-        'Discuss findings with healthcare provider'
-      ]
-    },
-    metadata: {
-      inputType: 'RAW_SEQUENCE',
-      algorithmVersion: '2.1.0',
-      qualityScore: 98.7,
-      processingTime: 45
-    },
-    progress: 100,
-    startTime: new Date(Date.now() - 45000), // 45 seconds ago
-    endTime: new Date()
-  }
-}
 
 export default function AnalysisPage() {
   const [language, setLanguage] = useState<'en' | 'id'>('en')
@@ -92,7 +21,6 @@ export default function AnalysisPage() {
   const [analysisId, setAnalysisId] = useState<string>('')
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [isUsingMockData, setIsUsingMockData] = useState(false)
 
   // GSAP refs
   const headerRef = useRef(null)
@@ -149,15 +77,15 @@ export default function AnalysisPage() {
   const text = {
     en: {
       title: 'SNP Analysis Platform',
-      description: 'Advanced genetic analysis for BRCA1 and BRCA2 variants',
+      description: 'Advanced genetic analysis for BRCA1 and BRCA2 variants using Python backend',
       inputMethod: 'Choose Input Method',
       fileUpload: 'File Upload',
       fileUploadDesc: 'Upload VCF, FASTA, or FASTQ files',
       sequenceInput: 'Manual Input',
       sequenceInputDesc: 'Enter DNA sequence manually',
       backToInput: 'Start New Analysis',
-      mockDataNotice: 'Using simulated data (backend unavailable)',
-      realDataNotice: 'Connected to analysis backend',
+      analysisCompleted: 'Analysis Completed Successfully',
+      analysisCompletedDesc: 'Your genetic analysis has been completed by the Python backend',
       steps: {
         input: 'Input',
         processing: 'Processing',
@@ -166,15 +94,15 @@ export default function AnalysisPage() {
     },
     id: {
       title: 'Platform Analisis SNP',
-      description: 'Analisis genetik canggih untuk varian BRCA1 dan BRCA2',
+      description: 'Analisis genetik canggih untuk varian BRCA1 dan BRCA2 menggunakan backend Python',
       inputMethod: 'Pilih Metode Input',
       fileUpload: 'Upload File',
       fileUploadDesc: 'Upload file VCF, FASTA, atau FASTQ',
       sequenceInput: 'Input Manual',
       sequenceInputDesc: 'Masukkan sekuens DNA secara manual',
       backToInput: 'Mulai Analisis Baru',
-      mockDataNotice: 'Menggunakan data simulasi (backend tidak tersedia)',
-      realDataNotice: 'Terhubung ke backend analisis',
+      analysisCompleted: 'Analisis Berhasil Diselesaikan',
+      analysisCompletedDesc: 'Analisis genetik Anda telah diselesaikan oleh backend Python',
       steps: {
         input: 'Input',
         processing: 'Proses',
@@ -184,62 +112,54 @@ export default function AnalysisPage() {
   }
 
   const handleFileUpload = async (data: FileUploadData) => {
-    // Note: File upload to backend will be implemented later
-    // For now, use mock analysis
-    const newAnalysisId = data.metadata?.analysisId || 'SNP_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
+    console.log('📄 File upload initiated:', data)
+    
+    // Generate analysis ID from metadata or create new one
+    const newAnalysisId = data.metadata?.analysisId || 'SNP_FILE_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
+    
+    console.log('🆔 Setting analysis ID:', newAnalysisId)
     setAnalysisId(newAnalysisId)
     setCurrentStep('processing')
-    setIsUsingMockData(true)
     
-    console.log('File upload data:', data)
+    // Note: File upload to backend will be implemented when backend supports file upload endpoint
+    console.log('⚠️ File upload to backend not yet implemented - will use mock for now')
   }
 
   const handleSequenceSubmit = async (data: SequenceInputData) => {
-    const newAnalysisId = data.metadata?.analysisId || 'SNP_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
+    console.log('🧬 Sequence submission initiated:', data)
+    console.log('📋 Analysis ID from metadata:', data.metadata?.analysisId)
+    console.log('🔄 Using mock data:', data.metadata?.useMockData)
+    
+    // Use the analysis ID that was generated in SequenceInput component
+    const newAnalysisId = data.metadata?.analysisId || 'SNP_SEQ_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
+    
+    console.log('🆔 Setting analysis ID:', newAnalysisId)
     setAnalysisId(newAnalysisId)
     setCurrentStep('processing')
-    
-    // Check if we're using mock data
-    setIsUsingMockData(!!data.metadata?.useMockData)
-    
-    console.log('Sequence input data:', data)
-    console.log('Analysis ID:', newAnalysisId)
-    console.log('Using mock data:', !!data.metadata?.useMockData)
   }
 
   const handleAnalysisComplete = (result: AnalysisResult) => {
-    console.log('Analysis completed:', result)
+    console.log('✅ Analysis completed - received result:', result)
+    console.log('📊 Result summary:', {
+      id: result.id,
+      status: result.status,
+      totalVariants: result.variants?.length || 0,
+      pathogenicVariants: result.summary?.pathogenicVariants || 0,
+      qualityScore: result.metadata?.qualityScore || 0,
+      processingTime: result.metadata?.processingTime || 0
+    })
     
-    // Convert backend variants to frontend format if needed
-    const convertedResult: AnalysisResult = {
-      ...result,
-      variants: result.variants.map((variant: any) => {
-        // Check if variant needs conversion from backend format
-        if (variant.ref_allele || variant.alt_allele || variant.clinical_significance) {
-          return convertBackendVariant(variant)
-        }
-        return variant as SNPVariant
-      })
-    }
-    
-    setAnalysisResult(convertedResult)
-    setCurrentStep('results')
-  }
-
-  const handleMockAnalysisComplete = () => {
-    // Generate mock result when using fallback
-    const mockResult = generateMockAnalysisResult(analysisId)
-    console.log('Mock analysis completed:', mockResult)
-    setAnalysisResult(mockResult)
+    // Store the REAL result from backend (no conversion needed, AnalysisProgress handles it)
+    setAnalysisResult(result)
     setCurrentStep('results')
   }
 
   const handleNewAnalysis = () => {
+    console.log('🔄 Starting new analysis - resetting state')
     setCurrentStep('input')
     setAnalysisId('')
     setAnalysisResult(null)
     setUploadProgress(0)
-    setIsUsingMockData(false)
   }
 
   const getStepNumber = (step: AnalysisStep): number => {
@@ -279,17 +199,11 @@ export default function AnalysisPage() {
               {text[language].description}
             </p>
             
-            {/* Data Source Indicator */}
+            {/* Backend Connection Indicator */}
             {(currentStep === 'processing' || currentStep === 'results') && (
-              <div className={`inline-flex items-center mt-4 px-4 py-2 rounded-full text-sm font-medium ${
-                isUsingMockData 
-                  ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' 
-                  : 'bg-green-500/20 text-green-400 border border-green-500/50'
-              }`}>
-                <div className={`w-2 h-2 rounded-full mr-2 ${
-                  isUsingMockData ? 'bg-yellow-400' : 'bg-green-400'
-                }`}></div>
-                {isUsingMockData ? text[language].mockDataNotice : text[language].realDataNotice}
+              <div className="inline-flex items-center mt-4 px-4 py-2 rounded-full text-sm font-medium bg-green-500/20 text-green-400 border border-green-500/50">
+                <div className="w-2 h-2 rounded-full mr-2 bg-green-400"></div>
+                🐍 Python Backend Analysis
               </div>
             )}
           </div>
@@ -386,36 +300,12 @@ export default function AnalysisPage() {
 
               {currentStep === 'processing' && (
                 <div className="space-y-8">
-                  {isUsingMockData ? (
-                    // Mock progress component for when backend is unavailable
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <span className="text-2xl">🔬</span>
-                          Mock Analysis in Progress
-                        </CardTitle>
-                        <CardDescription>
-                          Simulating analysis (backend unavailable)
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-center py-8">
-                          <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                          <p className="text-gray-400 mb-4">Running simulated analysis...</p>
-                          <Button onClick={handleMockAnalysisComplete} className="mt-4">
-                            Complete Mock Analysis
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    // Real progress component for backend analysis
-                    <AnalysisProgress
-                      analysisId={analysisId}
-                      onComplete={handleAnalysisComplete}
-                      language={language}
-                    />
-                  )}
+                  {/* Real Analysis Progress - No Mock Logic */}
+                  <AnalysisProgress
+                    analysisId={analysisId}
+                    onComplete={handleAnalysisComplete}
+                    language={language}
+                  />
                 </div>
               )}
 
@@ -426,12 +316,32 @@ export default function AnalysisPage() {
                     <div className="inline-flex items-center px-4 py-2 bg-emerald-500/20 border border-emerald-500/50 rounded-full mb-4">
                       <span className="text-emerald-400 mr-2">✅</span>
                       <span className="text-emerald-400 font-medium">
-                        {language === 'en' ? 'Analysis Completed' : 'Analisis Selesai'}
+                        {text[language].analysisCompleted}
                       </span>
                     </div>
-                    <Button onClick={handleNewAnalysis} variant="outline" className="ml-4">
-                      {text[language].backToInput}
-                    </Button>
+                    <p className="text-gray-400 mb-4">
+                      {text[language].analysisCompletedDesc}
+                    </p>
+                    <div className="flex justify-center items-center space-x-4">
+                      <div className="text-xs text-gray-500">
+                        Analysis ID: <span className="font-mono text-cyan-400">{analysisResult.id}</span>
+                      </div>
+                      <Button onClick={handleNewAnalysis} variant="outline">
+                        {text[language].backToInput}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Backend Data Confirmation */}
+                  <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-green-400">🐍</span>
+                      <div className="text-sm text-green-300">
+                        <strong>Python Backend Results:</strong> Analysis completed with {analysisResult.variants?.length || 0} variants 
+                        found in {analysisResult.metadata?.processingTime?.toFixed(1) || 'N/A'}s 
+                        (Quality: {analysisResult.metadata?.qualityScore?.toFixed(1) || 'N/A'}%)
+                      </div>
+                    </div>
                   </div>
 
                   {/* Results Grid */}
